@@ -1,25 +1,26 @@
 package handler
 
 import (
-	"github.com/gin-gonic/gin"
-	"github.com/marchenkova/todo-app"
 	"net/http"
+
+	"github.com/bikojii/todo-app"
+	"github.com/gin-gonic/gin"
 )
 
 func (h *Handler) signUp(c *gin.Context) {
 	var input todo.User
 
-	if err := c.BindJSON(&input); err != nil {
-		newErrorResponse(c, http.StatusBadRequest, err.Error())
+	if err := bindJSON(c, &input); err != nil {
+		newErrorResponse(c, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
 	id, err := h.services.Authorization.CreateUser(input)
 	if err != nil {
-		newErrorResponse(c, http.StatusUnauthorized, err.Error())
+		serviceError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, map[string]interface{}{
+	c.JSON(http.StatusCreated, map[string]interface{}{
 		"id": id,
 	})
 
@@ -33,14 +34,14 @@ type signInInput struct {
 func (h *Handler) signIn(c *gin.Context) {
 	var input signInInput
 
-	if err := c.BindJSON(&input); err != nil {
-		newErrorResponse(c, http.StatusBadRequest, err.Error())
+	if err := bindJSON(c, &input); err != nil {
+		newErrorResponse(c, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
 	token, err := h.services.Authorization.GenerateToken(input.Username, input.Password)
 	if err != nil {
-		newErrorResponse(c, http.StatusUnauthorized, err.Error())
+		serviceError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, map[string]interface{}{

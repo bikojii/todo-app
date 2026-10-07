@@ -1,8 +1,10 @@
 package handler
 
 import (
+	"net/http"
+
+	"github.com/bikojii/todo-app/pkg/service"
 	"github.com/gin-gonic/gin"
-	"github.com/marchenkova/todo-app/pkg/service"
 )
 
 type Handler struct {
@@ -15,6 +17,11 @@ func NewHandler(services *service.Service) *Handler {
 
 func (h *Handler) InitRoutes() *gin.Engine {
 	router := gin.New()
+	router.Use(gin.Recovery())
+	router.Use(func(c *gin.Context) {
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 1<<20)
+		c.Next()
+	})
 
 	auth := router.Group("/auth")
 	{
@@ -32,14 +39,14 @@ func (h *Handler) InitRoutes() *gin.Engine {
 			lists.PUT("/:id", h.updateList)
 			lists.DELETE("/:id", h.deleteList)
 
-			items := lists.Group(":id/items")
+			items := lists.Group("/:id/items")
 			{
 				items.POST("/", h.createItem)
 				items.GET("/", h.getAllItem)
 			}
 		}
 
-		items := api.Group("items")
+		items := api.Group("/items")
 		{
 			items.GET("/:id", h.getItemById)
 			items.PUT("/:id", h.updateItem)

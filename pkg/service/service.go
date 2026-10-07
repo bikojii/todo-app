@@ -1,8 +1,8 @@
 package service
 
 import (
-	"github.com/marchenkova/todo-app"
-	"github.com/marchenkova/todo-app/pkg/repository"
+	"github.com/bikojii/todo-app"
+	"github.com/bikojii/todo-app/pkg/repository"
 )
 
 type Authorization interface {
@@ -33,10 +33,14 @@ type Service struct {
 	TodoItem
 }
 
-func NewService(repos *repository.Repository) *Service {
+func NewService(repos *repository.Repository, signingKey string) (*Service, error) {
+	auth, err := NewAuthService(repos.Authorization, signingKey)
+	if err != nil {
+		return nil, err
+	}
 	return &Service{
-		Authorization: NewAuthService(repos.Authorization),
+		Authorization: auth,
 		TodoList:      NewTodoListService(repos.TodoList),
 		TodoItem:      NewTodoItemService(repos.TodoItem, repos.TodoList),
-	}
+	}, nil
 }

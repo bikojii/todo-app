@@ -1,8 +1,8 @@
 package service
 
 import (
-	"github.com/marchenkova/todo-app"
-	"github.com/marchenkova/todo-app/pkg/repository"
+	"github.com/bikojii/todo-app"
+	"github.com/bikojii/todo-app/pkg/repository"
 )
 
 type TodoItemService struct {
@@ -15,15 +15,16 @@ func NewTodoItemService(repo repository.TodoItem, listRepo repository.TodoList) 
 }
 
 func (s *TodoItemService) Create(userId int, listId int, item todo.TodoItem) (int, error) {
-	_, err := s.listRepo.GetById(userId, listId)
-	if err != nil {
+	if err := item.Validate(); err != nil {
 		return 0, err
 	}
-
-	return s.repo.Create(listId, item)
+	return s.repo.Create(userId, listId, item)
 }
 
 func (s *TodoItemService) GetAll(userId int, listId int) ([]todo.TodoItem, error) {
+	if _, err := s.listRepo.GetById(userId, listId); err != nil {
+		return nil, err
+	}
 	return s.repo.GetAll(userId, listId)
 }
 
@@ -36,5 +37,8 @@ func (s *TodoItemService) Delete(userId int, itemId int) error {
 }
 
 func (s *TodoItemService) Update(userId, itemId int, input todo.UpdateItemInput) error {
+	if err := input.Validate(); err != nil {
+		return err
+	}
 	return s.repo.Update(userId, itemId, input)
 }

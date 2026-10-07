@@ -1,7 +1,5 @@
 package todo
 
-import "errors"
-
 type TodoList struct {
 	Id          int    `json:"id" db:"id"`
 	Title       string `json:"title" db:"title" binding:"required"`
@@ -24,7 +22,7 @@ type TodoItem struct {
 type ListItem struct {
 	Id     int
 	ListId int
-	UserId int
+	ItemId int
 }
 
 type UpdateListInput struct {
@@ -34,7 +32,16 @@ type UpdateListInput struct {
 
 func (i UpdateListInput) Validate() error {
 	if i.Title == nil && i.Description == nil {
-		return errors.New("update has no values")
+		return ErrInvalidInput
+	}
+
+	if i.Title != nil {
+		if err := ValidateText(*i.Title, "title", true); err != nil {
+			return err
+		}
+	}
+	if i.Description != nil {
+		return ValidateText(*i.Description, "description", false)
 	}
 	return nil
 }
@@ -47,7 +54,16 @@ type UpdateItemInput struct {
 
 func (i UpdateItemInput) Validate() error {
 	if i.Title == nil && i.Description == nil && i.Done == nil {
-		return errors.New("update has no values")
+		return ErrInvalidInput
+	}
+
+	if i.Title != nil {
+		if err := ValidateText(*i.Title, "title", true); err != nil {
+			return err
+		}
+	}
+	if i.Description != nil {
+		return ValidateText(*i.Description, "description", false)
 	}
 	return nil
 }

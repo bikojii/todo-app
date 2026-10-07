@@ -1,8 +1,8 @@
 package service
 
 import (
-	"github.com/marchenkova/todo-app"
-	"github.com/marchenkova/todo-app/pkg/repository"
+	"github.com/bikojii/todo-app"
+	"github.com/bikojii/todo-app/pkg/repository"
 )
 
 type TodoListService struct {
@@ -14,6 +14,9 @@ func NewTodoListService(repo repository.TodoList) *TodoListService {
 }
 
 func (s *TodoListService) Create(userId int, list todo.TodoList) (int, error) {
+	if err := list.Validate(); err != nil {
+		return 0, err
+	}
 	return s.repo.Create(userId, list)
 }
 

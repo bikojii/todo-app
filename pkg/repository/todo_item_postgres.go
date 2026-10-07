@@ -2,9 +2,10 @@ package repository
 
 import (
 	"fmt"
-	"github.com/jmoiron/sqlx"
-	"github.com/marchenkova/todo-app"
 	"strings"
+
+	"github.com/bikojii/todo-app"
+	"github.com/jmoiron/sqlx"
 )
 
 type TodoItemPostgres struct {
@@ -15,20 +16,25 @@ func NewTodoItemPostgres(db *sqlx.DB) *TodoItemPostgres {
 	return &TodoItemPostgres{db: db}
 }
 
-func (r *TodoItemPostgres) Create(listId int, item todo.TodoItem) (int, error) {
+func (r *TodoItemPostgres) Create(userId, listId int, item todo.TodoItem) (int, error) {
 	tx, err := r.db.Begin()
 	if err != nil {
 		return 0, err
 	}
 
+	defer tx.Rollback()
+	var ownedId int
+	err = tx.QueryRow("SELECT tl.id FROM todo_lists tl JOIN users_lists ul ON ul.list_id = tl.id WHERE ul.user_id = $1 AND tl.id = $2 FOR UPDATE OF tl", userId, listId).Scan(&ownedId)
+	if err != nil {
+		return 0, mapError(err)
+	}
 	var itemId int
-	createItemQuery := fmt.Sprintf("INSERT INTO %s (title, description) VALUES ($1, $2) RETURNING id",
+	createItemQuery := fmt.Sprintf("INSERT INTO %s (title, description, done) VALUES ($1, $2, $3) RETURNING id",
 		todoItemsTable)
 
-	row := tx.QueryRow(createItemQuery, item.Title, item.Description)
+	row := tx.QueryRow(createItemQuery, item.Title, item.Description, item.Done)
 	err = row.Scan(&itemId)
 	if err != nil {
-		tx.Rollback()
 		return 0, err
 	}
 
@@ -36,7 +42,6 @@ func (r *TodoItemPostgres) Create(listId int, item todo.TodoItem) (int, error) {
 		listsItemsTable)
 	_, err = tx.Exec(createListItemsQuery, listId, itemId)
 	if err != nil {
-		tx.Rollback()
 		return 0, err
 	}
 
@@ -44,11 +49,11 @@ func (r *TodoItemPostgres) Create(listId int, item todo.TodoItem) (int, error) {
 }
 
 func (r *TodoItemPostgres) GetAll(userId, listId int) ([]todo.TodoItem, error) {
-	var items []todo.TodoItem
-	query := fmt.Sprintf(`SELECT ti.id, ti.title, ti.description, ti.done 
-									FROM %s ti 
-									INNER JOIN %s li on li.item_id = ti.id 
-    								INNER JOIN %s ul on ul.list_id = li.list_id 
+	items := make([]todo.TodoItem, 0)
+	query := fmt.Sprintf(`SELECT ti.id, ti.title, ti.description, ti.done
+        FROM %s ti
+        INNER JOIN %s li on li.item_id = ti.id
+        INNER JOIN %s ul on ul.list_id = li.list_id
                 					WHERE li.list_id = $1 AND ul.user_id = $2`,
 		todoItemsTable, listsItemsTable, usersListsTable)
 	if err := r.db.Select(&items, query, listId, userId); err != nil {
@@ -59,27 +64,30 @@ func (r *TodoItemPostgres) GetAll(userId, listId int) ([]todo.TodoItem, error) {
 
 func (r *TodoItemPostgres) GetById(userId, itemId int) (todo.TodoItem, error) {
 	var item todo.TodoItem
-	query := fmt.Sprintf(`SELECT ti.id, ti.title, ti.description, ti.done 
-									FROM %s ti 
-									INNER JOIN %s li on li.item_id = ti.id 
-    								INNER JOIN %s ul on ul.list_id = li.list_id 
+	query := fmt.Sprintf(`SELECT ti.id, ti.title, ti.description, ti.done
+        FROM %s ti
+        INNER JOIN %s li on li.item_id = ti.id
+        INNER JOIN %s ul on ul.list_id = li.list_id
                  					WHERE ti.id = $1 AND ul.user_id = $2`,
 		todoItemsTable, listsItemsTable, usersListsTable)
 	if err := r.db.Get(&item, query, itemId, userId); err != nil {
-		return item, err
+		return item, mapError(err)
 	}
 	return item, nil
 }
 
 func (r *TodoItemPostgres) Delete(userId, itemId int) error {
-	query := fmt.Sprintf(`DELETE FROM %s ti using %s li, %s ul 
+	query := fmt.Sprintf(`DELETE FROM %s ti using %s li, %s ul
        WHERE ti.id = li.item_id AND li.list_id = ul.list_id AND ul.user_id = $1 AND ti.id = $2`,
 		todoItemsTable, listsItemsTable, usersListsTable)
-	_, err := r.db.Exec(query, itemId, userId)
-	return err
+	result, err := r.db.Exec(query, userId, itemId)
+	return checkAffected(result, err)
 }
 
 func (r *TodoItemPostgres) Update(userId, itemId int, input todo.UpdateItemInput) error {
+	if err := input.Validate(); err != nil {
+		return err
+	}
 	setValues := make([]string, 0)
 	args := make([]interface{}, 0)
 	argId := 1
@@ -104,11 +112,11 @@ func (r *TodoItemPostgres) Update(userId, itemId int, input todo.UpdateItemInput
 
 	setQuery := strings.Join(setValues, ", ")
 
-	query := fmt.Sprintf(`UPDATE %s ti SET %s FROM %s li, %s ul 
+	query := fmt.Sprintf(`UPDATE %s ti SET %s FROM %s li, %s ul
                     WHERE ti.id = li.item_id AND li.list_id = ul.list_id AND ul.user_id = $%d AND ti.id = $%d`,
 		todoItemsTable, setQuery, listsItemsTable, usersListsTable, argId, argId+1)
 	args = append(args, userId, itemId)
 
-	_, err := r.db.Exec(query, args...)
-	return err
+	result, err := r.db.Exec(query, args...)
+	return checkAffected(result, err)
 }

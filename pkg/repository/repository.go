@@ -1,13 +1,14 @@
 package repository
 
 import (
+	"github.com/bikojii/todo-app"
 	"github.com/jmoiron/sqlx"
-	"github.com/marchenkova/todo-app"
 )
 
 type Authorization interface {
 	CreateUser(user todo.User) (int, error)
-	GetUser(username, password string) (todo.User, error)
+	GetUser(username string) (todo.User, error)
+	UpdatePassword(userId int, hash string) error
 }
 
 type TodoList interface {
@@ -19,7 +20,7 @@ type TodoList interface {
 }
 
 type TodoItem interface {
-	Create(listId int, item todo.TodoItem) (int, error)
+	Create(userId, listId int, item todo.TodoItem) (int, error)
 	GetAll(userId int, listId int) ([]todo.TodoItem, error)
 	GetById(userId int, itemId int) (todo.TodoItem, error)
 	Delete(userId int, itemId int) error

@@ -2,9 +2,10 @@ package handler
 
 import (
 	"errors"
-	"github.com/gin-gonic/gin"
 	"net/http"
 	"strings"
+
+	"github.com/gin-gonic/gin"
 )
 
 const (
@@ -19,15 +20,15 @@ func (h *Handler) userIdentity(c *gin.Context) {
 		return
 	}
 
-	headerParts := strings.Split(header, " ")
-	if len(headerParts) != 2 {
+	headerParts := strings.Fields(header)
+	if len(headerParts) != 2 || !strings.EqualFold(headerParts[0], "Bearer") {
 		newErrorResponse(c, http.StatusUnauthorized, "invalid auth header")
 		return
 	}
 
 	userId, err := h.services.Authorization.ParseToken(headerParts[1])
 	if err != nil {
-		newErrorResponse(c, http.StatusUnauthorized, err.Error())
+		newErrorResponse(c, http.StatusUnauthorized, "invalid or expired token")
 		return
 	}
 
@@ -42,7 +43,7 @@ func getUserId(c *gin.Context) (int, error) {
 	}
 
 	idInt, ok := id.(int)
-	if !ok {
+	if !ok || idInt <= 0 {
 		newErrorResponse(c, http.StatusInternalServerError, "user id is of invalid type")
 		return 0, errors.New("user id not found")
 	}
